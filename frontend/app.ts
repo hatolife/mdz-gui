@@ -35,6 +35,29 @@ interface Backend {
 declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
 const api = window.go.main.App;
 const element = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const dialogBackdrop = element<HTMLElement>('dialog-backdrop');
+let activeAppDialog: HTMLDialogElement | undefined;
+function syncDialogBackdrop(): void {
+	const active = !!activeAppDialog?.open;
+	dialogBackdrop.hidden = !active;
+	document.body.classList.toggle('app-dialog-open', active);
+}
+function showAppDialog(dialog: HTMLDialogElement): void {
+	if (dialog.open) return;
+	activeAppDialog = dialog;
+	dialog.show();
+	syncDialogBackdrop();
+}
+document.querySelectorAll<HTMLDialogElement>('dialog').forEach(dialog => dialog.addEventListener('close', () => {
+	if (activeAppDialog === dialog) activeAppDialog = undefined;
+	syncDialogBackdrop();
+}));
+window.addEventListener('keydown', event => {
+	if (event.key !== 'Escape' || !activeAppDialog?.open) return;
+	event.preventDefault();
+	const cancel = new Event('cancel', {cancelable:true});
+	if (activeAppDialog.dispatchEvent(cancel)) activeAppDialog.close();
+}, true);
 void api.Version().then(version => { element('app-version').textContent = version; }).catch(() => {});
 const editor = element<HTMLTextAreaElement>('editor');
 const nativeInput = element<HTMLTextAreaElement>('native-input');
@@ -487,7 +510,7 @@ function askMdbookInstall(): Promise<boolean> {
 		accept.onclick = () => finish('accept');
 		decline.onclick = () => finish('decline');
 		dialog.oncancel = event => { event.preventDefault(); finish('cancel'); }; // Escは今回だけ使わない扱いにする。
-		dialog.showModal();
+		showAppDialog(dialog);
 	});
 }
 async function refreshBook(askInstall = false): Promise<void> {
@@ -771,8 +794,8 @@ function undo(redo: boolean): void {
 }
 element('undo').onclick = () => undo(false); element('redo').onclick = () => undo(true);
 const newDialog = element<HTMLDialogElement>('new-dialog');
-element('new').onclick = () => newDialog.showModal();
-element('welcome-new').onclick = () => newDialog.showModal();
+element('new').onclick = () => showAppDialog(newDialog);
+element('welcome-new').onclick = () => showAppDialog(newDialog);
 element('welcome-open').onclick = () => element('open').click();
 element('welcome-recovery').onclick = () => element('recovery').click();
 // 種類のボタンを押すと、そのまま閲覧モードで新しい文書を作成します。
@@ -833,7 +856,7 @@ for (const mode of ['edit', 'split', 'view']) element(`${mode}-mode`).onclick = 
 	native.resize();
 };
 const dialog = element<HTMLDialogElement>('page-dialog');
-element('add-page').onclick = () => dialog.showModal();
+element('add-page').onclick = () => showAppDialog(dialog);
 dialog.addEventListener('close', () => {
 	if (dialog.returnValue !== 'add') return;
 	let name = element<HTMLInputElement>('page-name').value.trim();
@@ -870,7 +893,7 @@ element('settings').onclick = () => {
 		const control = settingsDialog.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${key}"]`)!;
 		if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
 	}
-	settingsDialog.showModal();void checkDependencies();
+	showAppDialog(settingsDialog);void checkDependencies();
 };
 element('choose-nvim').onclick = () => void action(async () => { const name = await api.ChooseExecutable(); if (name) {element<HTMLInputElement>('nvim-path').value = name;void checkDependencies();} });
 element('choose-mdbook').onclick = () => void action(async () => { const p = await api.ChooseMdbook(); if(p) {element<HTMLInputElement>('mdbook-path').value=p;void checkDependencies();} });
@@ -927,7 +950,7 @@ async function showRecoveries(): Promise<void> {
 		const button = document.createElement('button'); button.textContent = `${item.filename || '新しい文書'} — ${new Date(item.updated).toLocaleString()}`;
 		button.onclick = () => void action(async () => { await flush(); if (await api.Recover(item.id)) { element<HTMLDialogElement>('recovery-dialog').close(); await reload(); status('作業データを復旧しました。内容を確認して保存してください'); } }); list.append(button);
 	}
-	element<HTMLDialogElement>('recovery-dialog').showModal();
+	showAppDialog(element<HTMLDialogElement>('recovery-dialog'));
 }
 element('recovery').onclick = () => void showRecoveries().catch(error => status(String(error), true));
 function markdownDropTarget(x: number, y: number): {target: string; after: boolean} | undefined {
@@ -1177,7 +1200,7 @@ const tocDialog=element<HTMLDialogElement>('toc-dialog');
 function openTocDialog(operation: string): void {
 	tocOperation=operation;element('toc-dialog-title').textContent=operation==='add'?'ページを追加':operation==='part'?'部タイトルを追加':'目次の表示名を変更';
 	element<HTMLInputElement>('toc-name').value=operation==='rename'?contents?.entries.find(e=>e.id===tocSelected)?.title||'':'';
-	element('toc-error').textContent='';tocDialog.showModal();
+	element('toc-error').textContent='';showAppDialog(tocDialog);
 }
 element('toc-add').onclick=()=>openTocDialog('add');element('toc-part').onclick=()=>openTocDialog('part');
 element('toc-cancel').onclick=()=>tocDialog.close();
@@ -1193,7 +1216,7 @@ const bookConfigDialog=element<HTMLDialogElement>('book-config-dialog');
 const bookConfigText=element<HTMLTextAreaElement>('book-config-text');
 element('book-config').onclick=()=>void action(async()=>{
 	await flush();const config=await api.GetBookConfiguration();configRevision=config.revision;bookConfigText.value=config.text;bookConfigText.readOnly=!editing;
-	element('book-config-edit').hidden=editing;element('book-config-save').hidden=!editing;element('book-config-error').textContent='';bookConfigDialog.showModal();
+	element('book-config-edit').hidden=editing;element('book-config-save').hidden=!editing;element('book-config-error').textContent='';showAppDialog(bookConfigDialog);
 });
 element('book-config-edit').onclick=()=>{bookConfigText.readOnly=false;element('book-config-edit').hidden=true;element('book-config-save').hidden=false;bookConfigText.focus();};
 element('book-config-cancel').onclick=()=>bookConfigDialog.close();
@@ -1205,7 +1228,7 @@ element<HTMLFormElement>('book-config-form').onsubmit=event=>{
 const unsavedDialog = element<HTMLDialogElement>('unsaved-dialog');
 window.runtime.EventsOn('confirm-unsaved', () => {
 	unsavedDialog.querySelectorAll('button').forEach(button => button.disabled = false);
-	unsavedDialog.showModal();
+	showAppDialog(unsavedDialog);
 	element('unsaved-save').focus();
 });
 async function resolveUnsaved(choice: string): Promise<void> {
@@ -1237,7 +1260,7 @@ element('book-title-edit').onclick = () => void action(async () => {
 	bookInfo = await api.BookStatus();
 	element<HTMLInputElement>('book-title-input').value = bookInfo.title;
 	element('book-title-error').textContent = '';
-	bookTitleDialog.showModal();
+	showAppDialog(bookTitleDialog);
 	element<HTMLInputElement>('book-title-input').select();
 });
 element('book-title-cancel').onclick = () => bookTitleDialog.close();
@@ -1479,7 +1502,7 @@ element('slides-settings').onclick=()=>{
 	for(const [id,value] of Object.entries({'deck-title':deck.title,'deck-theme':deck.theme,'deck-aspect':deck.aspect,'deck-margin':deck.marginColor||'#ffffff','slide-title':slide.title,'slide-layout':slide.layout,'slide-background':slide.background||'','slide-notes':slide.notes||''})) {
 		const control=element<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>(id); control.value=String(value); control.disabled=!editing;
 	}
-	element('slides-settings-save').hidden=!editing;element('slides-settings-error').textContent='';element<HTMLDialogElement>('slides-settings-dialog').showModal();
+	element('slides-settings-save').hidden=!editing;element('slides-settings-error').textContent='';showAppDialog(element<HTMLDialogElement>('slides-settings-dialog'));
 };
 element('slides-settings-cancel').onclick=()=>element<HTMLDialogElement>('slides-settings-dialog').close();
 element('slides-settings-form').onsubmit=event=>{
@@ -1495,7 +1518,7 @@ element('slides-settings-form').onsubmit=event=>{
 		element<HTMLDialogElement>('slides-settings-dialog').close();await refreshSidebar();await render();status('スライドの設定を更新しました');
 	});
 };
-element('slides-import').onclick=()=>{element('slides-import-error').textContent='';element<HTMLDialogElement>('slides-import-dialog').showModal();};
+element('slides-import').onclick=()=>{element('slides-import-error').textContent='';showAppDialog(element<HTMLDialogElement>('slides-import-dialog'));};
 element('slides-import-cancel').onclick=()=>element<HTMLDialogElement>('slides-import-dialog').close();
 element('slides-import-form').onsubmit=event=>{event.preventDefault();void action(async()=>{
 	try{await mutateSlide('import',element<HTMLTextAreaElement>('slides-import-text').value);element<HTMLDialogElement>('slides-import-dialog').close();}
