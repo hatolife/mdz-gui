@@ -94,12 +94,21 @@ jobs:
       - name: Build help MDZ
         run: go run ./cmd/package-help --output build/bin/mdz-gui-help.mdz
 
+      - name: Package zip
+        run: |
+          ZIP_STAMP=$(git show -s --format=%cd --date=format:%Y%m%d-%H%M%S HEAD)
+          PKG_NAME="mdz-gui-windows-amd64-${ZIP_STAMP}"
+          mkdir -p "build/pkg/${PKG_NAME}"
+          cp build/bin/mdz-gui.exe build/bin/mdz-gui-help.mdz "build/pkg/${PKG_NAME}/"
+          (cd build/pkg && 7z a -tzip "../${PKG_NAME}.zip" "${PKG_NAME}")
+          echo "ZIP_PATH=build/${PKG_NAME}.zip" >> "$GITHUB_ENV"
+
       - name: Write release notes
         run: |
           cat > build/release-notes.md <<'NOTES'
-          Windows向けビルドです。下のAssetsから`mdz-gui.exe`をダウンロードして起動してください。インストールは不要です。
+          Windows向けビルドです。下のAssetsからzipをダウンロードして展開し、`mdz-gui.exe`を起動してください。インストールは不要です。
 
-          `mdz-gui-help.mdz`は操作ヘルプです。mdz-guiで開いて読んでください。
+          同梱の`mdz-gui-help.mdz`は操作ヘルプです。mdz-guiで開いて読んでください。
 
           Microsoft Edge WebView2 Runtimeが必要です。NeovimとmdBookは任意です。
           NOTES
@@ -108,7 +117,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ASSETS="build/bin/mdz-gui.exe build/bin/mdz-gui-help.mdz"
+          ASSETS="$ZIP_PATH"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" $ASSETS --clobber
           else
