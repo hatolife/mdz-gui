@@ -257,3 +257,9 @@ body.external-file-drag #slide-preview,
 body.external-file-drag #preview {
 	pointer-events: none;
 }
+
+
+/* アプリ内ダイアログ表示中も独自タイトルバーを操作できるようにします。 */
+#titlebar{position:relative;z-index:4002}
+#dialog-backdrop{position:fixed;z-index:4000;left:0;right:0;top:34px;bottom:0;background:#0006;--wails-draggable:no-drag}
+body.app-dialog-open dialog[open]{position:fixed;z-index:4001;left:50%;top:calc(50% + 17px);margin:0;transform:translate(-50%,-50%);max-height:calc(100vh - 66px)!important;overflow:auto}
