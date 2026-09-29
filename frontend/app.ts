@@ -1000,7 +1000,7 @@ function installIframeFileDropBridge(frame: HTMLIFrameElement): void {
 		event.preventDefault();
 		event.stopPropagation();
 		setExternalFileDrag(false);
-		const files = [...(event.dataTransfer?.files || [])];
+		const files = event.dataTransfer ? Array.from(event.dataTransfer.files) : [];
 		if (!files.length || !window.runtime.ResolveFilePaths) return;
 		const bounds = frame.getBoundingClientRect();
 		window.runtime.ResolveFilePaths(bounds.left + event.clientX, bounds.top + event.clientY, files);
