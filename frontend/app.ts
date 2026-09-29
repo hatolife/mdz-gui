@@ -561,6 +561,10 @@ element('book-fallback').onclick = () => void action(async () => { bookFallback=
 element('window-minimise').onclick = () => window.runtime.WindowMinimise?.();
 element('window-maximise').onclick = () => window.runtime.WindowToggleMaximise?.();
 element('window-close').onclick = () => window.runtime.Quit?.();
+element('titlebar').ondblclick = event => {
+	if ((event.target as Element).closest('#window-controls')) return;
+	window.runtime.WindowToggleMaximise?.();
+};
 element('sidebar-toggle').onclick = () => { const hide = !element('sidebar').hidden; element('sidebar').hidden=hide; element('sidebar-resizer').hidden=hide; element('sidebar-toggle').setAttribute('aria-expanded',String(!hide)); native.resize(); };
 element('preview-kind').onchange = () => void action(async () => {
 	bookFallback = element<HTMLSelectElement>('preview-kind').value === 'markdown';
