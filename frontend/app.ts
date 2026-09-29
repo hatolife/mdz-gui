@@ -4,7 +4,7 @@ interface Snapshot { filename: string; entry: string; pages: string[]; assets: s
 interface TocEntry { id: number; kind: string; title: string; target: string; name: string; depth: number; missing: boolean }
 interface BookContents { revision: string; entries: TocEntry[]; unlisted: string[]; canUndo: boolean; canRedo: boolean }
 interface BookInfo { present: boolean; title: string; detected: boolean; source: string; executable: string; winget: boolean; url: string; error: string; trusted: boolean }
-interface Settings { mdbookPath: string; mdbookDeclined: boolean; theme: string; accent: string; editor: string; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
+interface Settings { mdbookPath: string; mdbookDeclined: boolean; startupWithoutFile: string; startupWithFile: string; theme: string; accent: string; editor: string; nvimPath: string; initMode: string; initPath: string; undoLevels: number; fontFamily: string; fontSize: number; imageDirectory: string; imageName: string; autoSave: boolean; autoSaveSeconds: number; backupGenerations: number; backupMiB: number }
 interface Recovery { id: string; filename: string; updated: string }
 interface Slide { id: string; file: string; title: string; layout: string; fontSize: number; background: string; notes: string }
 interface SlideDeck { version: number; title: string; theme: string; aspect: string; marginColor?: string; contentMarginX?: number; contentMarginY?: number; fontFamily?: string; bodyFontSize?: number; h1FontSize?: number; h2FontSize?: number; h3FontSize?: number; h4FontSize?: number; h5FontSize?: number; slides: Slide[] }
@@ -20,7 +20,7 @@ interface Backend {
 	Contents(): Promise<BookContents>; ChangeContents(revision: string, index: number, operation: string, value: string): Promise<BookContents>;
 	RenameBook(revision: string, title: string): Promise<void>; GetBookConfiguration(): Promise<{text: string; revision: string}>; SaveBookConfiguration(revision: string, text: string): Promise<void>;
 	ResolveUnsaved(choice: string): Promise<void>; NewDocument(kind: string): Promise<boolean>; EndEditing(): Promise<void>; BookStatus(): Promise<BookInfo>; StartBook(allow: boolean): Promise<string>; StopBook(): Promise<void>; InstallMdbook(): Promise<string>; ChooseMdbook(): Promise<string>;
-	Initial(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
+	Initial(): Promise<string>; LastDocument(): Promise<string>; Version(): Promise<string>; State(): Promise<Snapshot>; MarkDirty(): Promise<void>;
 	New(): Promise<boolean>; Open(name: string): Promise<boolean>; OpenInNewWindow(name: string): Promise<void>; ImportMarkdownFiles(names: string[], target: string, after: boolean): Promise<string[]>; Text(name: string): Promise<string>;
 	Update(name: string, text: string): Promise<void>; AddPage(name: string): Promise<void>; MovePage(expected: string[], name: string, target: string, after: boolean): Promise<void>;
 	ImportImage(filename: string): Promise<string>; Save(as: boolean): Promise<boolean>; AddImage(): Promise<string>; StoreImage(base64: string): Promise<string>; Render(text: string): Promise<string>;
@@ -1095,8 +1095,20 @@ window.runtime.EventsOn('app-error', error => status(String(error), true));
 
 void action(async () => {
 	cfg = await api.Settings(); applyTheme(); await reload();
-	const name = await api.Initial(); if (name && await api.Open(name)) await reload();
-	if (!name) await showRecoveries();
+	const name = await api.Initial();
+	if (name) {
+		if (await api.Open(name)) await reload(cfg.startupWithFile === 'edit');
+		return;
+	}
+	if (cfg.startupWithoutFile === 'new') {
+		if (await api.NewDocument('document')) await reload(true);
+		return;
+	}
+	if (cfg.startupWithoutFile === 'last') {
+		const last = await api.LastDocument();
+		if (last && await api.Open(last)) { await reload(); return; }
+	}
+	await showRecoveries();
 });
 let polling = false;
 window.setInterval(() => {

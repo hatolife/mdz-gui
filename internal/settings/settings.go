@@ -13,6 +13,8 @@ import (
 type Settings struct {
 	MdbookPath        string `json:"mdbookPath"`
 	MdbookDeclined    bool   `json:"mdbookDeclined"`
+	StartupWithoutFile string `json:"startupWithoutFile"`
+	StartupWithFile    string `json:"startupWithFile"`
 	Theme             string `json:"theme"`
 	Accent            string `json:"accent"`
 	Editor            string `json:"editor"`
@@ -31,10 +33,18 @@ type Settings struct {
 }
 
 func Default() Settings {
-	return Settings{Theme: "system", Accent: "blue", Editor: "neovim", InitMode: "custom", UndoLevels: 1000, FontFamily: "Consolas, 'Yu Gothic', monospace", FontSize: 15, ImageDirectory: "images", ImageName: "{date}-{time}-{counter}", AutoSave: false, AutoSaveSeconds: 60, BackupGenerations: 10, BackupMiB: 512}
+	return Settings{StartupWithoutFile: "welcome", StartupWithFile: "view", Theme: "system", Accent: "blue", Editor: "neovim", InitMode: "custom", UndoLevels: 1000, FontFamily: "Consolas, 'Yu Gothic', monospace", FontSize: 15, ImageDirectory: "images", ImageName: "{date}-{time}-{counter}", AutoSave: false, AutoSaveSeconds: 60, BackupGenerations: 10, BackupMiB: 512}
 }
 
 func (s Settings) Validate() error {
+	switch s.StartupWithoutFile {
+	case "welcome", "last", "new":
+	default:
+		return fmt.Errorf("ファイル未指定時の起動方法が不正です")
+	}
+	if s.StartupWithFile != "view" && s.StartupWithFile != "edit" {
+		return fmt.Errorf("ファイル指定時の起動方法が不正です")
+	}
 	if s.Theme != "system" && s.Theme != "light" && s.Theme != "dark" {
 		return fmt.Errorf("テーマが不正です")
 	}

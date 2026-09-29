@@ -36,6 +36,9 @@ func TestSingleMarkdownOpenOverwriteAndConvert(t *testing.T) {
 	if state.Filename != source || state.Entry != "メモ.md" {
 		t.Fatalf("source identity lost: filename=%q entry=%q", state.Filename, state.Entry)
 	}
+	if got := a.LastDocument(); got != source {
+		t.Fatalf("last document = %q, want %q", got, source)
+	}
 	if len(state.Pages) != 1 || state.Pages[0] != state.Entry {
 		t.Fatalf("unexpected pages: %#v", state.Pages)
 	}

@@ -95,6 +95,29 @@ func (a *App) emit(event string, data any) {
 	}
 }
 func (a *App) Initial() string { return a.initial }
+func (a *App) LastDocument() string {
+	b, err := os.ReadFile(filepath.Join(a.base, "last-document"))
+	if err != nil || len(b) == 0 {
+		return ""
+	}
+	filename := string(b)
+	info, err := os.Stat(filename)
+	if err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	if !bundle.IsMarkdown(filename) && !strings.EqualFold(filepath.Ext(filename), ".mdz") {
+		return ""
+	}
+	return filename
+}
+func (a *App) rememberLastDocument(filename string) {
+	if filename == "" {
+		return
+	}
+	if err := workspace.AtomicWrite(filepath.Join(a.base, "last-document"), []byte(filename)); err != nil {
+		a.emit("app-error", "最後に開いた文書を記録できません: "+err.Error())
+	}
+}
 func (a *App) Version() string { return version }
 
 func (a *App) singleMarkdownLocked() bool {
@@ -296,12 +319,15 @@ func (a *App) Open(filename string) (bool, error) {
 		return false, err
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	s, err := workspace.New(a.base, d, filename, false)
 	if err != nil {
+		a.mu.Unlock()
 		return false, err
 	}
 	a.adoptLocked(s)
+	filename = a.session.Filename
+	a.mu.Unlock()
+	a.rememberLastDocument(filename)
 	return true, nil
 }
 // OpenInNewWindow はMDZまたはMarkdownを別のmdz-guiプロセスで開きます。
@@ -431,13 +457,17 @@ func (a *App) Save(saveAs bool) (bool, error) {
 		}
 	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	if a.session.ID != id {
+		a.mu.Unlock()
 		return false, fmt.Errorf("保存対象の文書が変更されました")
 	}
 	if err := a.saveLocked(filename); err != nil {
+		a.mu.Unlock()
 		return false, err
 	}
+	filename = a.session.Filename
+	a.mu.Unlock()
+	a.rememberLastDocument(filename)
 	return true, nil
 }
 func (a *App) saveLocked(filename string) error {

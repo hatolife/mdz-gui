@@ -13,6 +13,21 @@ func TestLimitsAndDefaults(t *testing.T) {
 	if Default().InitMode != "custom" {
 		t.Fatalf("default init mode = %q", Default().InitMode)
 	}
+	if Default().StartupWithoutFile != "welcome" || Default().StartupWithFile != "view" {
+		t.Fatalf("default startup = %q / %q", Default().StartupWithoutFile, Default().StartupWithFile)
+	}
+	for _, value := range []string{"", "unknown"} {
+		s := Default()
+		s.StartupWithoutFile = value
+		if err := s.Validate(); err == nil {
+			t.Fatalf("accepted startup without file %q", value)
+		}
+		s = Default()
+		s.StartupWithFile = value
+		if err := s.Validate(); err == nil {
+			t.Fatalf("accepted startup with file %q", value)
+		}
+	}
 	for _, n := range []int{0, -1, 10001} {
 		s := Default()
 		s.UndoLevels = n
@@ -40,7 +55,7 @@ func TestLimitsAndDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.UndoLevels != 25 || s.AutoSaveSeconds != 60 || s.ImageDirectory != "assets/pasted" {
+	if s.UndoLevels != 25 || s.AutoSaveSeconds != 60 || s.ImageDirectory != "assets/pasted" || s.StartupWithoutFile != "welcome" || s.StartupWithFile != "view" {
 		t.Fatalf("wrong defaults: %+v", s)
 	}
 
