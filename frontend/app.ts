@@ -32,7 +32,7 @@ interface Backend {
 	NativeInput(keys: string): Promise<void>; NativePaste(text: string): Promise<void>; NativeUndo(redo: boolean): Promise<void>;
 	NativeResize(cols: number, rows: number): Promise<void>; NativeScroll(ratio: number): Promise<void>; NativeMouse(button: string, action: string, modifier: string, row: number, col: number): Promise<void>;
 }
-declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
+declare global { interface Window { go: { main: { App: Backend } }; runtime: { OnFileDrop(callback: (x: number, y: number, paths: string[]) => void, useDropTarget: boolean): void; ResolveFilePaths?(x: number, y: number, files: File[]): void; EventsOn(event: string, callback: (...args: any[]) => void): void; BrowserOpenURL(url: string): void; WindowMinimise?(): void; WindowToggleMaximise?(): void; Quit?(): void; WindowFullscreen?(): void; WindowUnfullscreen?(): void; WindowIsFullscreen?(): Promise<boolean> } } }
 const api = window.go.main.App;
 const element = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 void api.Version().then(version => { element('app-version').textContent = version; }).catch(() => {});
@@ -981,6 +981,39 @@ document.addEventListener('dragleave', event => {
 	if (event.relatedTarget === null) setExternalFileDrag(false);
 }, true);
 window.addEventListener('blur', () => setExternalFileDrag(false));
+const iframeFileDropDocuments = new WeakSet<Document>();
+function installIframeFileDropBridge(frame: HTMLIFrameElement): void {
+	let frameDocument: Document | null;
+	try { frameDocument = frame.contentDocument; } catch { return; }
+	if (!frameDocument || iframeFileDropDocuments.has(frameDocument)) return;
+	iframeFileDropDocuments.add(frameDocument);
+	const captureDrag = (event: DragEvent): void => {
+		if (!isExternalFileDrag(event)) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+		setExternalFileDrag(true);
+	};
+	frameDocument.addEventListener('dragenter', captureDrag, true);
+	frameDocument.addEventListener('dragover', captureDrag, true);
+	frameDocument.addEventListener('drop', event => {
+		if (!isExternalFileDrag(event)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		setExternalFileDrag(false);
+		const files = [...(event.dataTransfer?.files || [])];
+		if (!files.length || !window.runtime.ResolveFilePaths) return;
+		const bounds = frame.getBoundingClientRect();
+		window.runtime.ResolveFilePaths(bounds.left + event.clientX, bounds.top + event.clientY, files);
+	}, true);
+	frameDocument.addEventListener('dragleave', event => {
+		if (!isExternalFileDrag(event)) return;
+		if (event.relatedTarget === null) setExternalFileDrag(false);
+	}, true);
+}
+document.addEventListener('load', event => {
+	if (event.target instanceof HTMLIFrameElement) installIframeFileDropBridge(event.target);
+}, true);
+document.querySelectorAll<HTMLIFrameElement>('iframe').forEach(installIframeFileDropBridge);
 // WebViewのドロップ処理を登録します。文書一覧へのMarkdownは取り込み、それ以外の文書は別ウィンドウで開きます。
 window.runtime.OnFileDrop((x, y, paths) => {
 	if (!paths.length) return;
