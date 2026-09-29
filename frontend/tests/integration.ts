@@ -15,11 +15,15 @@ const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.addInitScript(()=>{
 if(window.top!==window) return;
 const listeners={};window.go={main:{App:new Proxy({},{get:(_,name)=>async(...args)=>{const r=await fetch('/rpc/'+name,{method:'POST',body:JSON.stringify(args)});if(!r.ok)throw new Error(await r.text());return r.json()}})}};
-window.runtime={OnFileDrop:fn=>{(listeners['wails:file-drop']??=[]).push(fn)},ResolveFilePaths:(x,y,files)=>{(window as any).__resolvedFileDrop={x,y,names:[...files].map(file=>file.name)}},EventsOn:(name,fn)=>{(listeners[name]??=[]).push(fn)},BrowserOpenURL:()=>{}};
+window.runtime={OnFileDrop:fn=>{(listeners['wails:file-drop']??=[]).push(fn)},ResolveFilePaths:(x,y,files)=>{(window as any).__resolvedFileDrop={x,y,names:[...files].map(file=>file.name)}},EventsOn:(name,fn)=>{(listeners[name]??=[]).push(fn)},BrowserOpenURL:()=>{},WindowToggleMaximise:()=>{(window as any).__maximiseCount=((window as any).__maximiseCount||0)+1}};
 let pending=false;setInterval(async()=>{if(pending)return;pending=true;try{for(const event of await (await fetch('/events')).json())for(const fn of listeners[event.name]||[])fn(event.data)}finally{pending=false}},50);
 });
 await page.goto(url);
 await page.waitForFunction(()=>!document.querySelector('#welcome').hidden && !document.querySelector('#new').disabled);
+await page.locator('#titlebar .titlebar-title').evaluate(node=>node.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true})));
+assert.equal(await page.evaluate(()=>(window as any).__maximiseCount),1);
+await page.locator('#window-maximise').evaluate(node=>node.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true})));
+assert.equal(await page.evaluate(()=>(window as any).__maximiseCount),1);
 assert.equal((await rpc('State')).id,'');
 await page.locator('#settings').click();
 assert.deepEqual(await page.locator('[name=initMode] option').allTextContents(),['init.luaを指定','設定なし（--clean）']);
