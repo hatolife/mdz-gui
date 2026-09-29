@@ -1005,10 +1005,6 @@ function installIframeFileDropBridge(frame: HTMLIFrameElement): void {
 		const bounds = frame.getBoundingClientRect();
 		window.runtime.ResolveFilePaths(bounds.left + event.clientX, bounds.top + event.clientY, files);
 	}, true);
-	frameDocument.addEventListener('dragleave', event => {
-		if (!isExternalFileDrag(event)) return;
-		if (event.relatedTarget === null) setExternalFileDrag(false);
-	}, true);
 }
 document.addEventListener('load', event => {
 	if (event.target instanceof HTMLIFrameElement) installIframeFileDropBridge(event.target);
