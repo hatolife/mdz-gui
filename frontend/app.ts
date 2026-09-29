@@ -42,8 +42,13 @@ function syncDialogBackdrop(): void {
 	dialogBackdrop.hidden = !active;
 	document.body.classList.toggle('app-dialog-open', active);
 }
+function cancelAppDialog(dialog: HTMLDialogElement): void {
+	const cancel = new Event('cancel', {cancelable:true});
+	if (dialog.dispatchEvent(cancel)) dialog.close();
+}
 function showAppDialog(dialog: HTMLDialogElement): void {
 	if (dialog.open) return;
+	if (activeAppDialog?.open) cancelAppDialog(activeAppDialog);
 	activeAppDialog = dialog;
 	dialog.show();
 	syncDialogBackdrop();
@@ -55,8 +60,7 @@ document.querySelectorAll<HTMLDialogElement>('dialog').forEach(dialog => dialog.
 window.addEventListener('keydown', event => {
 	if (event.key !== 'Escape' || !activeAppDialog?.open) return;
 	event.preventDefault();
-	const cancel = new Event('cancel', {cancelable:true});
-	if (activeAppDialog.dispatchEvent(cancel)) activeAppDialog.close();
+	cancelAppDialog(activeAppDialog);
 }, true);
 void api.Version().then(version => { element('app-version').textContent = version; }).catch(() => {});
 const editor = element<HTMLTextAreaElement>('editor');
