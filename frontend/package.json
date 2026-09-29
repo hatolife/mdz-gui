@@ -1,0 +1,20 @@
+{
+	"name": "mdz-gui-frontend",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "tsc && node copy-vendor.mjs",
+		"check": "tsc --noEmit",
+		"test:ui": "node tests/integration.ts",
+		"test:slides": "node tests/slides.ts",
+		"test:layout": "node tests/layout.ts"
+	},
+	"devDependencies": {
+		"jszip": "^3.10.1",
+		"playwright": "^1.61.1",
+		"typescript": "5.9.3"
+	},
+	"dependencies": {
+		"reveal.js": "5.2.1"
+	}
+}

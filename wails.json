@@ -1,0 +1,1 @@
+{"$schema":"https://wails.io/schemas/config.v2.json","name":"mdz-gui","outputfilename":"mdz-gui","frontend:dir":"frontend","frontend:install":"npm ci","frontend:build":"npm run build","author":{"name":"hatolife"},"preBuildHooks":{"*/*":"go run ../../cmd/gen-version"}}

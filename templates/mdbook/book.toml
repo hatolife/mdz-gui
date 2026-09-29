@@ -1,0 +1,12 @@
+# 本のタイトル・著者・言語を設定します。
+[book]
+title = "新規mdBook"
+authors = ["あなたの名前"]
+description = "新規mdBookテンプレート"
+language = "ja"
+src = "src"
+
+# mdBookのプレビューに使用する設定です。
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"

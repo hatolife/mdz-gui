@@ -1,0 +1,9 @@
+/build/bin/
+/frontend/node_modules/
+/frontend/dist/*.js
+/frontend/wailsjs/
+*.syso
+
+/frontend/dist/vendor/
+
+/version_generated.go

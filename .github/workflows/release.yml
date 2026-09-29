@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags: ['**']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Releaseを作成・更新する既存のtag'
+        required: true
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  # Linuxでfrontendのビルドとテストを行う。
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+
+      - name: Test Go
+        run: go test ./... -timeout 120s
+
+  # WindowsでEXEとヘルプMDZを作り、Releaseへ登録する。
+  release:
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+
+      - name: Build EXE
+        run: |
+          COMMIT_TIME=$(git show -s --format=%cd --date=format:%Y-%m-%d-%H:%M HEAD)
+          COMMIT_SHORT=$(git rev-parse --short=7 HEAD)
+          APP_VERSION="v0.0.1-${COMMIT_TIME}-${COMMIT_SHORT}"
+          echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_ENV"
+          "$(go env GOPATH)/bin/wails" build -platform windows/amd64 -skipbindings -s -ldflags "-X main.version=${APP_VERSION}"
+          test -f build/bin/mdz-gui.exe
+
+      - name: Build help MDZ
+        run: go run ./cmd/package-help --output build/bin/mdz-gui-help.mdz
+
+      - name: Write release notes
+        run: |
+          cat > build/release-notes.md <<'NOTES'
+          Windows向けビルドです。下のAssetsから`mdz-gui.exe`をダウンロードして起動してください。インストールは不要です。
+
+          `mdz-gui-help.mdz`は操作ヘルプです。mdz-guiで開いて読んでください。
+
+          Microsoft Edge WebView2 Runtimeが必要です。NeovimとmdBookは任意です。
+          NOTES
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ASSETS="build/bin/mdz-gui.exe build/bin/mdz-gui-help.mdz"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" $ASSETS --clobber
+          else
+            gh release create "$RELEASE_TAG" $ASSETS \
+              --title "mdz-gui ${APP_VERSION}" \
+              --notes-file build/release-notes.md \
+              --prerelease \
+              --verify-tag
+          fi
